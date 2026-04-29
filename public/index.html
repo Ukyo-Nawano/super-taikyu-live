@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Car 104 Lap Live</title>
+
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f172a;
+      color: white;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 32px;
+      border-radius: 20px;
+      text-align: center;
+      min-width: 320px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+
+    .car {
+      font-size: 24px;
+      color: #67e8f9;
+      font-weight: bold;
+    }
+
+    .lap {
+      font-size: 72px;
+      font-weight: bold;
+      margin: 12px 0;
+    }
+
+    .label {
+      color: #94a3b8;
+      font-size: 14px;
+    }
+
+    .pit {
+      color: #facc15;
+      font-weight: bold;
+      min-height: 24px;
+    }
+
+    .status {
+      color: #94a3b8;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .updated {
+      animation: flash 0.6s ease;
+    }
+
+    @keyframes flash {
+      0% {
+        transform: scale(1);
+        background: #1e293b;
+      }
+      50% {
+        transform: scale(1.03);
+        background: #164e63;
+      }
+      100% {
+        transform: scale(1);
+        background: #1e293b;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="card" class="card">
+    <div class="car">Car No. 104</div>
+
+    <div id="laps" class="lap">--</div>
+    <div class="label">LAPS</div>
+
+    <p id="pit" class="pit"></p>
+    <p id="lastLap" class="status">Last Lap: --</p>
+    <p id="bestLap" class="status">Best Lap: --</p>
+    <p id="status" class="status">loading...</p>
+  </div>
+
+  <script>
+    let lastLiveMoniUpdateTime = null;
+    let lastDisplayedLaps = null;
+
+    async function loadLaps() {
+      const res = await fetch("/laps");
+      const data = await res.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      const card = document.getElementById("card");
+
+      document.getElementById("laps").textContent = data.laps ?? "--";
+      document.getElementById("pit").textContent = data.isPit ? "PIT IN" : "";
+      document.getElementById("lastLap").textContent =
+        "Last Lap: " + (data.lastLap ?? "-");
+      document.getElementById("bestLap").textContent =
+        "Best Lap: " + (data.bestLap ?? "-");
+
+      document.getElementById("status").innerHTML =
+        `Data fetched: ${data.fetchedAt}<br>` +
+        `UpdateTime: ${data.updateTime}<br>` +
+        `Final: ${data.isFinal ? "YES" : "NO"}`;
+
+      if (lastDisplayedLaps !== null && lastDisplayedLaps !== data.laps) {
+        card.classList.remove("updated");
+        void card.offsetWidth;
+        card.classList.add("updated");
+      }
+
+      lastDisplayedLaps = data.laps;
+    }
+
+    async function checkUpdate() {
+      try {
+        const res = await fetch("/updateinfo");
+        const data = await res.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        const current = data.liveMoniUpdateTime;
+
+        if (!current) {
+          document.getElementById("status").textContent =
+            "updateinfo に LiveMoniUpdateTime がありません";
+          return;
+        }
+
+        if (lastLiveMoniUpdateTime === null) {
+          lastLiveMoniUpdateTime = current;
+          await loadLaps();
+          return;
+        }
+
+        if (current !== lastLiveMoniUpdateTime) {
+          lastLiveMoniUpdateTime = current;
+          await loadLaps();
+        } else {
+          document.getElementById("status").innerHTML +=
+            `<br>Checked: ${data.checkedAt} / No update`;
+        }
+
+      } catch (e) {
+        document.getElementById("status").textContent = "更新チェック失敗";
+        console.error(e);
+      }
+    }
+
+    checkUpdate();
+
+    // updateinfo.json を1秒ごとに確認
+    setInterval(checkUpdate, 1000);
+  </script>
+</body>
+</html>
